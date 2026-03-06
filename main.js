@@ -15,6 +15,53 @@ var keys = { w: false, a: false, s: false, d: false };
 var camera = { dist: 7.5, yaw: Math.PI, pitch: 0.3 };
 var drag = false, lastX = 0, lastY = 0;
 
+// Edificios
+var buildings = [];
+
+function generateBuildings() {
+    buildings = [];
+    const CITY_LENGTH = -15000;
+
+    for (let z = 100; z > CITY_LENGTH; z -= 15) {
+        for (let row = 0; row < 3; row++) {
+            let side = (Math.random() > 0.5) ? 1 : -1;
+
+            let height = 5 + Math.random() * 60;
+            let width = 6 + Math.random() * 12;
+            let depth = 6 + Math.random() * 12;
+
+            let minX = 3.0 + (width / 2) + 0.5;
+            let xPos = (minX + Math.random() * 25) * side;
+
+            let color = [Math.random() * 0.3, 0.05, 0.5 + Math.random() * 0.5];
+            if (Math.random() > 0.5) color = [0.5 + Math.random() * 0.5, 0.05, Math.random() * 0.3];
+
+            buildings.push({
+                pos: [xPos, height / 2, z + Math.random() * 15],
+                scale: [width, height, depth],
+                color: color
+            });
+
+            if (Math.random() > 0.7) {
+                buildings.push({
+                    pos: [xPos, height + 4, z + Math.random() * 10],
+                    scale: [width * 0.6, 8, depth * 0.6],
+                    color: [color[0] * 1.4, color[1] * 1.4, color[2] * 1.4]
+                });
+            }
+        }
+    }
+}
+
+function checkCollision(pos) {
+    let carHalfW = 0.65, carHalfL = 1.05;
+    for (let b of buildings) {
+        let bHalfW = b.scale[0] / 2, bHalfL = b.scale[2] / 2;
+        if (Math.abs(pos[0] - b.pos[0]) < carHalfW + bHalfW && Math.abs(pos[2] - b.pos[2]) < carHalfL + bHalfL) return true;
+    }
+    return false;
+}
+
 function createCube() {
     let s = 0.5;
     let vertices = [
@@ -104,6 +151,8 @@ function init() {
     carProgram.uProj = gl.getUniformLocation(carProgram, "projectionMatrix");
     carProgram.uNorm = gl.getUniformLocation(carProgram, "normalMatrix");
     carProgram.uColor = gl.getUniformLocation(carProgram, "carColor");
+    carProgram.uTime = gl.getUniformLocation(carProgram, "time");
+    carProgram.uIsBuilding = gl.getUniformLocation(carProgram, "isBuilding");
 
     groundProgram.uMV = gl.getUniformLocation(groundProgram, "modelViewMatrix");
     groundProgram.uProj = gl.getUniformLocation(groundProgram, "projectionMatrix");
@@ -112,6 +161,8 @@ function init() {
     cubeModel = createCube(); initBuffers(cubeModel);
     wheelModel = createCylinder(); initBuffers(wheelModel);
     groundModel = createGround(); initBuffers(groundModel);
+
+    generateBuildings();
 
     window.onkeydown = e => {
         if (e.key.toLowerCase() === 'w') keys.w = true;
@@ -152,6 +203,7 @@ function drawModel(model, isCar = true) {
 }
 
 function render(time) {
+    let dt = time * 0.001;
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -165,7 +217,8 @@ function render(time) {
     if (keys.d) nextX += steerSpeed;
     nextX = Math.max(-2.35, Math.min(2.35, nextX));
 
-    carPos = [nextX, carPos[1], carPos[2] - carSpeed];
+    let newPos = [nextX, carPos[1], carPos[2] - carSpeed];
+    if (!checkCollision(newPos)) carPos = newPos; else carSpeed = 0;
 
     document.getElementById("speed-value").innerText = Math.round(Math.abs(carSpeed) * 166);
 
@@ -181,11 +234,25 @@ function render(time) {
     gl.uniformMatrix4fv(groundProgram.uMV, false, mat4.multiply(mat4.create(), view, mG));
     drawModel(groundModel, false);
 
-    // DIBUJAR COCHE
+    // DIBUJAR EDIFICIOS Y COCHE
     gl.useProgram(carProgram);
     gl.uniformMatrix4fv(carProgram.uView, false, view);
     gl.uniformMatrix4fv(carProgram.uProj, false, proj);
+    gl.uniform1f(carProgram.uTime, dt);
 
+    gl.uniform1i(carProgram.uIsBuilding, 1);
+    buildings.forEach(b => {
+        if (Math.abs(b.pos[2] - carPos[2]) < 500) {
+            gl.uniform3fv(carProgram.uColor, b.color);
+            let m = mat4.create(); mat4.translate(m, m, b.pos); mat4.scale(m, m, b.scale);
+            gl.uniformMatrix4fv(carProgram.uModel, false, m);
+            let nm = mat3.create(); mat3.normalFromMat4(nm, m);
+            gl.uniformMatrix3fv(carProgram.uNorm, false, nm);
+            drawModel(cubeModel, true);
+        }
+    });
+
+    gl.uniform1i(carProgram.uIsBuilding, 0);
     gl.uniform3fv(carProgram.uColor, [0.1, 0.1, 0.4]);
     let mB = mat4.create(); mat4.translate(mB, mB, [carPos[0], carPos[1] + 0.4, carPos[2]]); mat4.scale(mB, mB, [1.2, 0.4, 2.0]);
     updateCarUniforms(mB); drawModel(cubeModel, true);

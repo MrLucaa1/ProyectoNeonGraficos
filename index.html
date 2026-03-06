@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Neon Night Drive - Sprint 2</title>
+    <title>Neon Night Drive - Sprint 3</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #fff; }
         #ui { position: absolute; top: 20px; left: 20px; padding: 20px; background: rgba(0, 0, 0, 0.7); border: 1px solid #ff00ff; border-radius: 10px; box-shadow: 0 0 15px #ff00ff; pointer-events: none; backdrop-filter: blur(5px); z-index: 10; }
@@ -26,10 +26,13 @@
 
     out vec3 vNormal;
     out vec3 vPos;
+    out vec3 vWorldPos;
     
     void main() {
-        vec4 eyePos = viewMatrix * modelMatrix * vec4(VertexPosition, 1.0);
+        vec4 worldPos = modelMatrix * vec4(VertexPosition, 1.0);
+        vec4 eyePos = viewMatrix * worldPos;
         vPos = vec3(eyePos);
+        vWorldPos = worldPos.xyz;
         vNormal = normalize(normalMatrix * VertexNormal);
         gl_Position = projectionMatrix * eyePos;
     }
@@ -40,29 +43,50 @@
 
     in vec3 vNormal;
     in vec3 vPos;
+    in vec3 vWorldPos;
     
     out vec4 fragmentColor;
 
     uniform vec3 carColor;
+    uniform int isBuilding;
+    uniform float time;
     
     void main() {
         vec3 N = normalize(vNormal);
         vec3 L = normalize(vec3(5.0, 10.0, 5.0)); 
         vec3 V = normalize(-vPos);
         
-        vec3 ambientNight = vec3(0.1, 0.1, 0.15);
+        vec3 ambientNight = vec3(0.02, 0.02, 0.08);
+        vec3 moonlightColor = vec3(0.6, 0.7, 0.9);
+        
+        float bounceFactor = exp(-vWorldPos.y * 0.2); 
+        vec3 giBounce = vec3(0.4, 0.0, 0.4) * bounceFactor; 
+
         vec3 baseColor = carColor;
 
-        float edge = dot(N, V);
-        if (abs(edge) < 0.25) {
-            baseColor = vec3(0.0, 1.0, 1.0);
+        if (isBuilding == 1) {
+            vec2 uv = vWorldPos.xz + vWorldPos.xy + vWorldPos.zy;
+            vec2 grid = abs(fract(uv * 0.8 - 0.5) - 0.5);
+            float line = min(grid.x, grid.y);
+            float gridAlpha = 1.0 - smoothstep(0.0, 0.08, line);
+            
+            vec2 winPos = floor(vWorldPos.xz * 1.5 + vWorldPos.xy * 1.5);
+            float winSeed = fract(sin(dot(winPos, vec2(12.9898, 78.233))) * 43758.5453);
+            float window = (winSeed > 0.9) ? (0.6 + 0.4 * sin(time * 2.0 + winSeed * 10.0)) : 0.0;
+
+            baseColor = mix(vec3(0.04, 0.04, 0.06), carColor, gridAlpha);
+            baseColor += vec3(0.0, 0.9, 1.0) * window;
         } else {
-            float NdotL = max(0.0, dot(N, L));
-            baseColor *= (NdotL > 0.4) ? 1.0 : 0.4;
+            float edge = dot(N, V);
+            if (abs(edge) < 0.25) {
+                baseColor = vec3(0.0, 1.0, 1.0);
+            } else {
+                float NdotL = max(0.0, dot(N, L));
+                baseColor *= (NdotL > 0.4) ? 1.0 : 0.3;
+            }
         }
 
-        vec3 finalColor = baseColor * ambientNight + (vec3(0.6, 0.7, 0.9) * max(0.0, dot(N, L)) * 0.5);
-        
+        vec3 finalColor = baseColor * (ambientNight + giBounce) + (moonlightColor * max(0.0, dot(N, L)) * 0.5);
         fragmentColor = vec4(finalColor, 1.0);
     }
     </script>
@@ -119,7 +143,7 @@
 <body>
     <div id="ui">
         <h1>Neon Night Drive</h1>
-        <p>Sprint 2: Vehículo, Shaders base y Movimiento</p>
+        <p>Sprint 3: Generación de Edificios y Colisiones</p>
         <p>Utiliza <span class="key">WASD</span> para conducir</p>
         <p>Utiliza el ratón para mover la cámara</p>
     </div>
