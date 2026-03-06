@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <title>Neon Night Drive - Sprint 1</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #ff00ff;
+            border-radius: 10px;
+            box-shadow: 0 0 15px #ff00ff;
+            pointer-events: none;
+            backdrop-filter: blur(5px);
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ui">
+        <h1>Neon Night Drive</h1>
+        <p>Configuración básica de WebGL - Sprint 1</p>
+    </div>
+
+    <canvas id="myCanvas"></canvas>
+    <script src="main.js"></script>
+</body>
+
+</html>
