@@ -3,18 +3,77 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Neon Night Drive - Sprint 3</title>
+    <title>Neon Night Drive - Luca</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #fff; }
-        #ui { position: absolute; top: 20px; left: 20px; padding: 20px; background: rgba(0, 0, 0, 0.7); border: 1px solid #ff00ff; border-radius: 10px; box-shadow: 0 0 15px #ff00ff; pointer-events: none; backdrop-filter: blur(5px); z-index: 10; }
-        h1 { margin: 0 0 10px 0; font-size: 24px; text-transform: uppercase; letter-spacing: 3px; color: #00ffff; text-shadow: 0 0 10px #00ffff; }
-        p { margin: 5px 0; font-size: 14px; color: #aaa; }
-        .key { display: inline-block; padding: 2px 8px; border: 1px solid #fff; border-radius: 4px; font-family: monospace; background: rgba(255, 255, 255, 0.1); }
-        #speed-o-meter { position: absolute; bottom: 40px; right: 40px; text-align: right; z-index: 10; }
-        #speed-value { font-size: 48px; font-weight: bold; color: #ff00ff; text-shadow: 0 0 20px #ff00ff; }
-        canvas { display: block; width: 100vw; height: 100vh; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #ff00ff;
+            border-radius: 10px;
+            box-shadow: 0 0 15px #ff00ff;
+            pointer-events: none;
+            backdrop-filter: blur(5px);
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .key {
+            display: inline-block;
+            padding: 2px 8px;
+            border: 1px solid #fff;
+            border-radius: 4px;
+            font-family: monospace;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        #speed-o-meter {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            text-align: right;
+            z-index: 10;
+        }
+
+        #speed-value {
+            font-size: 48px;
+            font-weight: bold;
+            color: #ff00ff;
+            text-shadow: 0 0 20px #ff00ff;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
     </style>
 
+    <!-- Shaders para el Coche e Iluminación -->
     <script id="carVertexShader" type="x-shader/x-vertex">#version 300 es
     layout(location=0) in vec3 VertexPosition;
     layout(location=1) in vec3 VertexNormal;
@@ -27,13 +86,15 @@
     out vec3 vNormal;
     out vec3 vPos;
     out vec3 vWorldPos;
-    
+    out float vDist;
+
     void main() {
         vec4 worldPos = modelMatrix * vec4(VertexPosition, 1.0);
         vec4 eyePos = viewMatrix * worldPos;
         vPos = vec3(eyePos);
         vWorldPos = worldPos.xyz;
         vNormal = normalize(normalMatrix * VertexNormal);
+        vDist = -eyePos.z; 
         gl_Position = projectionMatrix * eyePos;
     }
     </script>
@@ -44,13 +105,21 @@
     in vec3 vNormal;
     in vec3 vPos;
     in vec3 vWorldPos;
+    in float vDist;
     
     out vec4 fragmentColor;
 
     uniform vec3 carColor;
-    uniform int isBuilding;
+    uniform int uFogActive;
     uniform float time;
+    uniform int isBuilding;
     
+    const vec3 fogColor = vec3(0.5, 0.5, 0.5); 
+    const float fogStartNormal = 40.0;
+    const float fogEndNormal = 120.0;
+    const float fogStartActive = 1.0;
+    const float fogEndActive = 12.0;
+
     void main() {
         vec3 N = normalize(vNormal);
         vec3 L = normalize(vec3(5.0, 10.0, 5.0)); 
@@ -59,17 +128,20 @@
         vec3 ambientNight = vec3(0.02, 0.02, 0.08);
         vec3 moonlightColor = vec3(0.6, 0.7, 0.9);
         
+        // GI basado en altura del mundo (Uniforme)
         float bounceFactor = exp(-vWorldPos.y * 0.2); 
         vec3 giBounce = vec3(0.4, 0.0, 0.4) * bounceFactor; 
 
         vec3 baseColor = carColor;
 
         if (isBuilding == 1) {
+            // Usar vWorldPos para una rejilla estática y uniforme
             vec2 uv = vWorldPos.xz + vWorldPos.xy + vWorldPos.zy;
             vec2 grid = abs(fract(uv * 0.8 - 0.5) - 0.5);
             float line = min(grid.x, grid.y);
             float gridAlpha = 1.0 - smoothstep(0.0, 0.08, line);
             
+            // Ventanas estáticas en el mundo
             vec2 winPos = floor(vWorldPos.xz * 1.5 + vWorldPos.xy * 1.5);
             float winSeed = fract(sin(dot(winPos, vec2(12.9898, 78.233))) * 43758.5453);
             float window = (winSeed > 0.9) ? (0.6 + 0.4 * sin(time * 2.0 + winSeed * 10.0)) : 0.0;
@@ -87,20 +159,54 @@
         }
 
         vec3 finalColor = baseColor * (ambientNight + giBounce) + (moonlightColor * max(0.0, dot(N, L)) * 0.5);
-        fragmentColor = vec4(finalColor, 1.0);
+
+        float start = (uFogActive == 1) ? fogStartActive : fogStartNormal;
+        float end = (uFogActive == 1) ? fogEndActive : fogEndNormal;
+        float fogFactor = clamp((end - vDist) / (end - start), 0.0, 1.0);
+        
+        fragmentColor = vec4(mix(fogColor, finalColor, fogFactor), 1.0);
     }
     </script>
 
+    <!-- Shader para LLuvia 3D -->
+    <script id="rainVertexShader" type="x-shader/x-vertex">#version 300 es
+    layout(location=0) in vec3 VertexPosition;
+    uniform mat4 viewMatrix;
+    uniform mat4 projectionMatrix;
+    uniform float rainOffset;
+    uniform float carZ;
+
+    void main() {
+        vec3 pos = VertexPosition;
+        // Hacer que la lluvia caiga y se repita
+        pos.y = mod(pos.y - rainOffset, 20.0); 
+        // Hacer que la lluvia siga al coche
+        pos.z += carZ;
+        
+        gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);
+    }
+    </script>
+
+    <script id="rainFragmentShader" type="x-shader/x-fragment">#version 300 es
+    precision mediump float;
+    out vec4 fragmentColor;
+    void main() {
+        fragmentColor = vec4(0.4, 0.6, 1.0, 0.6);
+    }
+    </script>
+
+    <!-- Shaders para el Suelo con Carretera -->
     <script id="groundVertexShader" type="x-shader/x-vertex">#version 300 es
     layout(location=0) in vec3 VertexPosition;
     uniform mat4 modelViewMatrix;
     uniform mat4 projectionMatrix;
     uniform float worldZ;
     out vec2 vUV;
-    
+    out float vDist;
     void main() {
         vUV = VertexPosition.xz + vec2(0.0, worldZ); 
         vec4 eyePos = modelViewMatrix * vec4(VertexPosition, 1.0);
+        vDist = -eyePos.z;
         gl_Position = projectionMatrix * eyePos;
     }
     </script>
@@ -108,9 +214,17 @@
     <script id="groundFragmentShader" type="x-shader/x-fragment">#version 300 es
     precision mediump float;
     in vec2 vUV;
+    in float vDist;
     out vec4 fragmentColor;
+    uniform float time;
+    uniform int uFogActive;
+
+    const vec3 fogColor = vec3(0.5, 0.5, 0.5);
+    const float fogStartNormal = 30.0;
+    const float fogEndNormal = 120.0;
 
     void main() {
+        // Carretera más pequeña (Ancho total 6 -> distToCenter < 3.0)
         float distToCenter = abs(vUV.x);
         bool isRoad = distToCenter < 3.0;
         
@@ -124,9 +238,11 @@
         vec3 finalColor;
         if (isRoad) {
             finalColor = asphaltColor;
+            // Bordes Cian
             if (distToCenter < 0.1 || (distToCenter > 2.8 && distToCenter < 3.0)) {
                 finalColor = vec3(0.0, 1.0, 1.0); 
             }
+            // Línea discontinua amarilla
             float dash = step(0.5, fract(vUV.y * 1.5));
             if (abs(distToCenter - 1.5) < 0.05) {
                 finalColor = mix(finalColor, vec3(1.0, 1.0, 0.0), dash);
@@ -134,8 +250,12 @@
         } else {
             finalColor = mix(vec3(0.01), gridColor, gridAlpha);
         }
+
+        float start = (uFogActive == 1) ? 1.0 : fogStartNormal;
+        float end = (uFogActive == 1) ? 12.0 : fogEndNormal;
+        float fogFactor = clamp((end - vDist) / (end - start), 0.0, 1.0);
         
-        fragmentColor = vec4(finalColor, 1.0);
+        fragmentColor = vec4(mix(fogColor, finalColor, fogFactor), 1.0);
     }
     </script>
 </head>
@@ -143,8 +263,8 @@
 <body>
     <div id="ui">
         <h1>Neon Night Drive</h1>
-        <p>Sprint 3: Generación de Edificios y Colisiones</p>
         <p>Utiliza <span class="key">WASD</span> para conducir</p>
+        <p>Presiona <span class="key">R</span> para la NIEBLA | <span class="key">L</span> para la LLUVIA</p>
         <p>Utiliza el ratón para mover la cámara</p>
     </div>
 
